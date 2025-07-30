@@ -1,0 +1,41 @@
+# ------------------------------------------------------------------
+# Example configuration for akakinad-logstash-deployment
+#
+# How to use:
+# 1. Copy this file and rename it to "terraform.tfvars"
+# 2. Replace the example values below with your own information
+# ------------------------------------------------------------------
+
+# AWS Configuration
+aws_region = "us-west-2"
+
+# Project Configuration
+project_name = "akakinad-logstash"
+environment  = "dev"
+
+# Network Configuration
+vpc_cidr           = "10.0.0.0/16"
+availability_zones = ["us-west-2a", "us-west-2b"]
+
+# Security Configuration
+# IMPORTANT: Replace with YOUR public IP address
+# Find your IP at: https://whatismyipaddress.com/
+my_ip = "203.0.113.42/32"  # REPLACE THIS WITH YOUR IP
+
+# Instance Configuration
+bastion_instance_type  = "t3.micro"   # Small and cheap for bastion
+logstash_instance_type = "t3.medium"  # More powerful for log processing
+
+# SSH Key Configuration (Optional)
+# If you have an AWS Key Pair, specify it here
+# Otherwise, you can use EC2 Instance Connect
+key_pair_name = ""  # Example: "my-aws-keypair"
+
+# Resource Tagging
+common_tags = {
+  Project     = "akakinad-logstash-deployment"
+  ManagedBy   = "Terraform"
+  Owner       = "akakinad"
+  Environment = "dev"
+  Purpose     = "Learning-DevOps"
+}
