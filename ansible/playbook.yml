@@ -1,0 +1,75 @@
+---
+# Main Ansible Playbook for Logstash Deployment
+# This playbook configures Logstash on the private server via bastion host
+
+- name: Configure Logstash Server
+  hosts: logstash
+  become: yes
+  gather_facts: yes
+  
+  pre_tasks:
+    - name: Wait for system to become reachable
+      wait_for_connection:
+        timeout: 300
+        
+    - name: Update system packages
+      dnf:
+        name: "*"
+        state: latest
+        update_cache: yes
+      register: system_update
+      
+    - name: Reboot if kernel was updated
+      reboot:
+        msg: "Reboot initiated by Ansible for kernel updates"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+      when: system_update.changed and 'kernel' in system_update.results | join(' ')
+      
+  roles:
+    - logstash
+    
+  post_tasks:
+    - name: Verify Logstash service status
+      systemd:
+        name: logstash
+        state: started
+        enabled: yes
+      register: logstash_status
+      
+    - name: Display service status
+      debug:
+        msg: "Logstash service is {{ logstash_status.status.ActiveState }}"
+        
+    - name: Check Logstash API endpoint
+      uri:
+        url: "http://localhost:9600"
+        method: GET
+        status_code: 200
+      register: logstash_api
+      retries: 5
+      delay: 10
+      until: logstash_api.status == 200
+      
+    - name: Display success message
+      debug:
+        msg: 
+          - "🎉 Logstash deployment completed successfully!"
+          - "📊 Service Status: {{ logstash_status.status.ActiveState }}"
+          - "🌐 API Status: {{ logstash_api.status }}"
+          - "📡 Logstash is listening on port 5044 for Beats input"
+          - "🔍 Management API available on port 9600"
+
+# Optional: Basic connectivity test to bastion
+- name: Test Bastion Connectivity
+  hosts: bastion
+  gather_facts: no
+  tasks:
+    - name: Ping bastion host
+      ping:
+      
+    - name: Display bastion info
+      debug:
+        msg: "✅ Bastion host is reachable and ready"

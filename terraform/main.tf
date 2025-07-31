@@ -11,9 +11,9 @@ terraform {
 
 # Configure the AWS Provider
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
   profile = var.aws_profile != "" ? var.aws_profile : null
-  
+
   default_tags {
     tags = var.common_tags
   }
@@ -41,9 +41,9 @@ module "networking" {
 
   project_name       = var.project_name
   environment        = var.environment
-  vpc_cidr          = var.vpc_cidr
+  vpc_cidr           = var.vpc_cidr
   availability_zones = var.availability_zones
-  common_tags       = var.common_tags
+  common_tags        = var.common_tags
 }
 
 # Bastion Host - Secure gateway in public subnet

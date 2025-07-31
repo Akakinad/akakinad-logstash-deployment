@@ -1,0 +1,32 @@
+---
+# Logstash Service Handlers
+# These handlers are triggered when configuration files change
+
+- name: restart logstash
+  systemd:
+    name: logstash
+    state: restarted
+    daemon_reload: yes
+  listen: restart logstash
+
+- name: reload logstash
+  systemd:
+    name: logstash
+    state: reloaded
+  listen: reload logstash
+
+- name: validate logstash config
+  shell: |
+    /usr/share/logstash/bin/logstash --config.test_and_exit \
+    --path.settings {{ logstash_config_dir }}
+  register: config_validation
+  failed_when: config_validation.rc != 0
+  listen: restart logstash
+
+- name: wait for logstash startup
+  wait_for:
+    port: 9600
+    host: localhost
+    delay: 10
+    timeout: 120
+  listen: restart logstash

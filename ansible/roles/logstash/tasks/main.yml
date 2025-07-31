@@ -1,0 +1,147 @@
+---
+# Logstash Installation and Configuration Tasks
+
+- name: Install Java (Amazon Corretto 17)
+  dnf:
+    name: "{{ java_package }}"
+    state: present
+  notify: restart logstash
+
+- name: Verify Java installation
+  command: java -version
+  register: java_version_output
+  changed_when: false
+
+- name: Display Java version
+  debug:
+    msg: "Java installed: {{ java_version_output.stderr_lines[0] }}"
+
+- name: Add Elastic repository GPG key
+  rpm_key:
+    key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+
+- name: Add Elastic repository
+  yum_repository:
+    name: elastic-8.x
+    description: Elastic repository for 8.x packages
+    baseurl: https://artifacts.elastic.co/packages/8.x/yum
+    gpgcheck: yes
+    gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    enabled: yes
+    state: present
+
+- name: Install Logstash
+  dnf:
+    name: "logstash-{{ logstash_version }}"
+    state: present
+  notify: restart logstash
+
+- name: Create Logstash directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: logstash
+    group: logstash
+    mode: '0755'
+  loop:
+    - "{{ logstash_config_dir }}/conf.d"
+    - "{{ logstash_data_dir }}"
+    - "{{ logstash_log_dir }}"
+
+- name: Configure Logstash main settings
+  template:
+    src: logstash.yml.j2
+    dest: "{{ logstash_config_dir }}/logstash.yml"
+    owner: root
+    group: logstash
+    mode: '0640'
+    backup: yes
+  notify: restart logstash
+
+- name: Configure JVM options
+  template:
+    src: jvm.options.j2
+    dest: "{{ logstash_config_dir }}/jvm.options"
+    owner: root
+    group: logstash
+    mode: '0640'
+    backup: yes
+  notify: restart logstash
+
+- name: Create basic Logstash pipeline configuration
+  copy:
+    content: |
+      # Basic Logstash pipeline configuration
+      input {
+        beats {
+          port => 5044
+        }
+      }
+      
+      filter {
+        # Add filters here for log processing
+        if [agent][type] == "filebeat" {
+          mutate {
+            add_field => { "logstash_processed" => "true" }
+          }
+        }
+      }
+      
+      output {
+        # For now, output to file for testing
+        file {
+          path => "/var/log/logstash/output.log"
+        }
+        
+        # Uncomment below to send to Elasticsearch
+        # elasticsearch {
+        #   hosts => ["elasticsearch-host:9200"]
+        #   index => "logstash-%{+YYYY.MM.dd}"
+        # }
+      }
+    dest: "{{ logstash_config_dir }}/conf.d/main.conf"
+    owner: root
+    group: logstash
+    mode: '0640'
+  notify: restart logstash
+
+- name: Set correct ownership for Logstash directories
+  file:
+    path: "{{ item }}"
+    owner: logstash
+    group: logstash
+    recurse: yes
+  loop:
+    - "{{ logstash_data_dir }}"
+    - "{{ logstash_log_dir }}"
+
+- name: Enable and start Logstash service
+  systemd:
+    name: logstash
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Wait for Logstash to start
+  wait_for:
+    port: 9600
+    host: localhost
+    delay: 10
+    timeout: 300
+  register: logstash_port_check
+
+- name: Check Logstash service status
+  systemd:
+    name: logstash
+  register: logstash_service_status
+
+- name: Display Logstash status
+  debug:
+    msg:
+      - "Logstash Service: {{ logstash_service_status.status.ActiveState }}"
+      - "API Port 9600: {{ 'Available' if logstash_port_check.elapsed < 300 else 'Not responding' }}"
+      - "Beats Input Port: 5044"
+      - "Config Directory: {{ logstash_config_dir }}"
+      - "Data Directory: {{ logstash_data_dir }}"
+      - "Log Directory: {{ logstash_log_dir }}"
